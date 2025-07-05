@@ -1,18 +1,20 @@
 import pickle
 import numpy as np
 
-# Load model and scaler
-with open("model.pkl", "rb") as file:
-    model, scaler = pickle.load(file)
+# Load the saved model and scaler
+model, scaler = pickle.load(open("model.pkl", "rb"))
 
-# Sample input (replace with your own values)
-sample = np.array([[2, 130, 70, 20, 85, 28.0, 0.5, 40]])
+# Sample patient input (you can replace this with your own)
+sample_data = np.array([[2, 130, 80, 20, 100, 28.0, 0.5, 35]])  # 8 features
 
-# Scale and predict
-scaled_sample = scaler.transform(sample)
-prediction = model.predict(scaled_sample)
-probability = model.predict_proba(scaled_sample)[0][1]
+# Scale the input
+scaled_input = scaler.transform(sample_data)
 
-# Show result
-print("Prediction:", "Diabetic" if prediction[0] == 1 else "Not Diabetic")
-print(f"Risk Probability: {probability:.2f}")
+# Predict
+prediction = model.predict(scaled_input)[0]
+
+# Print result
+if prediction == 1:
+    print("🚨 The person is likely Diabetic.")
+else:
+    print("✅ The person is likely Not Diabetic.")
