@@ -4,146 +4,127 @@ import pandas as pd
 import pickle
 import seaborn as sns
 import matplotlib.pyplot as plt
-from streamlit_lottie import st_lottie
-import requests
 
-
-
-# Load model and scaler
+# Load trained model and scaler from file
 model, scaler = pickle.load(open("model.pkl", "rb"))
 
-# Custom style
-st.set_page_config(page_title="💉 Diabetes Prediction App", layout="wide")
-# Load animation from Lottie
-
-# Doctor-style dark theme CSS
-st.markdown("""
-    <style>
-    body {
-        background-color: #121212;
-        color: #E0E0E0;
-    }
-    .main {
-        background-color: #121212;
-    }
-    input, select, textarea {
-        background-color: #1E1E1E !important;
-        color: #E0E0E0 !important;
-        border-radius: 5px;
-        padding: 5px;
-    }
-    .stButton > button {
-        background-color: #2196F3;
-        color: white;
-        font-weight: bold;
-        border-radius: 10px;
-    }
-    .stDownloadButton > button {
-        background-color: #4CAF50;
-        color: white;
-        font-weight: bold;
-        border-radius: 10px;
-    }
-    h1, h2, h3, h4 {
-        color: #00b0ff;
-        font-family: 'Segoe UI', sans-serif;
-    }
-    .stTabs [data-baseweb="tab"] {
-        background-color: #1e1e1e;
-        border: 1px solid #444;
-        padding: 10px;
-        border-radius: 10px;
-        color: #E0E0E0;
-    }
-    </style>
-""", unsafe_allow_html=True)
+# Streamlit page config
+st.set_page_config(page_title="Diabetes Predictor", layout="centered")
 
 # Title
 st.title("💉 Diabetes Prediction App")
-st.markdown("Welcome Doctor! Use this tool to **predict diabetes**, **analyze patient data**, and **visualize risk indicators**.")
+st.write("This app predicts whether a person is likely to have **diabetes** using medical data.")
 
 # Tabs
-tab1, tab2, tab3 = st.tabs(["📋 Predict One", "📂 Predict From File", "📊 Visual Insights"])
+tab1, tab2, tab3 = st.tabs(["📋 Predict One", "📂 Predict From File", "📊 Data Visualization"])
 
-# 🔹 Predict One
+# -------------------------------------
+# 🔹 Tab 1: Single Patient Prediction
 with tab1:
-    st.subheader("👤 Enter Patient Details:")
+    st.subheader("Enter Patient Details:")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        pregnancies = st.number_input("Pregnancies", 0.0)
-        glucose = st.number_input("Glucose", 0.0)
-        blood_pressure = st.number_input("Blood Pressure", 0.0)
-        skin_thickness = st.number_input("Skin Thickness", 0.0)
-    with col2:
-        insulin = st.number_input("Insulin", 0.0)
-        bmi = st.number_input("BMI", 0.0)
-        dpf = st.number_input("Diabetes Pedigree Function", 0.0)
-        age = st.number_input("Age", 0.0)
+    name = st.text_input("Enter Patient Name")
 
-    if st.button("🧮 Predict Now"):
-        inputs = np.array([[pregnancies, glucose, blood_pressure, skin_thickness, insulin, bmi, dpf, age]])
-        scaled = scaler.transform(inputs)
-        prediction = model.predict(scaled)[0]
+    pregnancies = st.number_input("Pregnancies", 0.0)
+    glucose = st.number_input("Glucose", 0.0)
+    blood_pressure = st.number_input("Blood Pressure", 0.0)
+    skin_thickness = st.number_input("Skin Thickness", 0.0)
+    insulin = st.number_input("Insulin", 0.0)
+    bmi = st.number_input("BMI", 0.0)
+    dpf = st.number_input("Diabetes Pedigree Function", 0.0)
+    age = st.number_input("Age", 0.0)
 
-        if prediction == 1:
-            st.error("⚠️ The patient is likely **Diabetic**.")
+    if st.button("Predict Now"):
+        if name.strip() == "":
+            st.warning("⚠️ Please enter the patient's name.")
         else:
-            st.success("✅ The patient is likely **Not Diabetic**.")
+            inputs = np.array([[pregnancies, glucose, blood_pressure, skin_thickness, insulin, bmi, dpf, age]])
+            scaled = scaler.transform(inputs)
+            prediction = model.predict(scaled)[0]
 
-# 🔹 Predict From File
+            # Prediction result
+            if prediction == 1:
+                st.error(f"🚨 {name}, you are likely **Diabetic**.")
+            else:
+                st.success(f"✅ {name}, you are likely **Not Diabetic**.")
+
+            # Chart showing prediction
+            st.subheader("📊 Prediction Summary")
+            categories = ['Not Diabetic', 'Diabetic']
+            values = [1 if prediction == 0 else 0, 1 if prediction == 1 else 0]
+
+            fig, ax = plt.subplots()
+            sns.barplot(x=categories, y=values,
+                        palette=["green" if prediction == 0 else "lightgray", "red" if prediction == 1 else "lightgray"],
+                        ax=ax)
+            ax.set_ylim(0, 1.2)
+            ax.set_ylabel("Prediction Confidence")
+            ax.set_title(f"Prediction Result for {name}")
+
+            for i, v in enumerate(values):
+                ax.text(i, v + 0.05, str(v), color='black', ha='center', fontweight='bold')
+
+            st.pyplot(fig)
+
+# -------------------------------------
+# 🔹 Tab 2: Predict from CSV File
 with tab2:
-    st.subheader("📂 Upload CSV File for Multiple Patients")
-    file = st.file_uploader("Upload your file", type=["csv"])
+    st.subheader("Upload CSV File for Bulk Prediction")
+    file = st.file_uploader("Upload your CSV file", type=["csv"])
 
     if file is not None:
-        df = pd.read_csv(file)
-        st.write("✅ File Loaded Successfully!")
-        st.dataframe(df.head())
-
         try:
+            df = pd.read_csv(file)
+            st.success("✅ File Loaded Successfully.")
+            st.dataframe(df.head())
+
             X = df.values
             X_scaled = scaler.transform(X)
             y_pred = model.predict(X_scaled)
             df['Prediction'] = ['Diabetic' if p == 1 else 'Not Diabetic' for p in y_pred]
 
-            st.success("🔍 Predictions Completed!")
+            st.success("✅ Predictions completed:")
             st.dataframe(df)
 
             csv = df.to_csv(index=False).encode()
-            st.download_button("📥 Download Results", data=csv, file_name="predicted_results.csv", mime='text/csv')
-        except:
-            st.error("❌ Error! Please check column order.")
+            st.download_button("📥 Download Results CSV", data=csv, file_name="diabetes_predictions.csv", mime='text/csv')
 
-# 🔹 Custom Visualizations
+        except Exception as e:
+            st.error("❌ Error: Please check CSV format and column order.")
+
+# -------------------------------------
+# 🔹 Tab 3: Visualization
 with tab3:
-    st.subheader("📊 Patient Data Insights (using PIMA Dataset)")
-    df = pd.read_csv("diabetes.csv")
+    st.subheader("📊 Data Visualizations")
+    use_sample = st.checkbox("Use Sample Dataset", value=True)
 
-    st.markdown("📈 Outcome Distribution Chart")
-    fig1, ax1 = plt.subplots()
-    sns.countplot(data=df, x="Outcome", palette="Set2", ax=ax1)
-    ax1.set_xticklabels(['Not Diabetic', 'Diabetic'])
-    st.pyplot(fig1)
+    if use_sample:
+        df = pd.read_csv("diabetes.csv")
+        st.dataframe(df.head())
 
-    st.markdown("Age vs Diabetes")
-    fig2, ax2 = plt.subplots()
-    sns.histplot(data=df, x="Age", hue="Outcome", multiple="stack", palette="Set1", bins=20, ax=ax2)
-    st.pyplot(fig2)
+        # Outcome Distribution
+        st.markdown("📈 Outcome Distribution")
+        fig1, ax1 = plt.subplots(figsize=(6, 4))
+        sns.countplot(x='Outcome', data=df, ax=ax1)
+        ax1.set_xticklabels(['Not Diabetic (0)', 'Diabetic (1)'])
+        st.pyplot(fig1)
 
-    st.markdown("BMI Distribution by Outcome")
-    fig3, ax3 = plt.subplots()
-    sns.kdeplot(data=df, x="BMI", hue="Outcome", fill=True, ax=ax3)
-    st.pyplot(fig3)
+        # # Correlation Heatmap
+        # st.markdown("### 🔥 Feature Correlation Heatmap")
+        # fig2, ax2 = plt.subplots(figsize=(7, 4))
+        # sns.heatmap(df.corr(), annot=True, cmap="coolwarm", ax=ax2)
+        # st.pyplot(fig2)
+        
+        #feature vs outcome
+        st.markdown("🧠 Custom Feature vs Outcome")
+        feature = st.selectbox("Select Feature:", df.columns[:-1])
+        fig5, ax5 = plt.subplots(figsize=(6, 4))
+        sns.histplot(data=df, x=feature, hue="Outcome", multiple="stack", ax=ax5)
+        st.pyplot(fig5)
+        
 
-    st.markdown("🧪 Glucose Level Distribution")
-    fig4, ax4 = plt.subplots()
-    sns.boxplot(data=df, x="Outcome", y="Glucose", palette="coolwarm", ax=ax4)
-    ax4.set_xticklabels(['Not Diabetic', 'Diabetic'])
-    st.pyplot(fig4)
-
-    st.markdown("🧠 Custom Feature vs Outcome")
-    feature = st.selectbox("Select Feature:", df.columns[:-1])
-    fig5, ax5 = plt.subplots()
-    sns.histplot(data=df, x=feature, hue="Outcome", multiple="stack", ax=ax5)
-    st.pyplot(fig5)
+        # Glucose Histogram
+        st.markdown("🧪 Glucose Level Distribution")
+        fig3, ax3 = plt.subplots(figsize=(6, 4))
+        sns.histplot(df['Glucose'], kde=True, bins=30, ax=ax3)
+        st.pyplot(fig3)
